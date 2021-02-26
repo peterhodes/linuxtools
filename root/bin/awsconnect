@@ -1,0 +1,48 @@
+#!/usr/bin/python3
+
+import sys
+import os
+
+
+def getPersistentArg(ArgRef):
+
+        ThisFile = sys.argv[0]
+        Path     = os.path.dirname(ThisFile)
+        Base     = os.path.basename(ThisFile)
+        ArgFile  = Path + '/.' + Base + '.arg.' + str(ArgRef)
+
+        if os.path.isfile(ArgFile):
+                FileHandle = open(ArgFile, "r")
+                with open(ArgFile) as f:
+                        for line in f:
+                                pass
+                        FileString = line
+                FileHandle.close()
+        else:
+                FileString = ''
+
+        if len(sys.argv) > ArgRef:
+                ArgString = sys.argv[ArgRef]
+                if ArgString != FileString:
+                        FileHandle = open(ArgFile,"a")
+                        FileHandle.write('\n')
+                        FileHandle.write(ArgString)
+                        FileHandle.close()
+        else:
+                if FileString == '':
+                        exit
+                else:
+                        ArgString = FileString
+
+        return(ArgString)
+
+HostName = getPersistentArg(1)
+
+CmdString = 'ssh -o StrictHostKeyChecking=no -i ~root/.ssh/aws-key-pair.pem ' + HostName
+print('Running > ',CmdString)
+
+Peter = os.system(CmdString)
+
+
+#ssh -i aws-key-pair.pem $1
+#ec2-user@ec2-3-8-157-219.eu-west-2.compute.amazonaws.com

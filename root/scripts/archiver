@@ -1,0 +1,116 @@
+#!/usr/bin/perl
+
+# FILE          archiver
+# VERSION       1.1
+# PURPOSE       Archiving Tool. Archives a file if it has changed.
+# AUTHOR        Peter Rhodes.
+# DATE          02/06/2014
+#
+# RELEASE HISTORY  #####################################################################################################
+########################################################################################################################
+#### Date          Version     Contributor      Comment
+#### 02/06/2014    1.1         Peter Rhodes     localised variables.
+#### 02/06/2014    1.1         Peter Rhodes     Small tidy up to enhance readability and remove clutter.
+#### 02/06/2014    1.1         Peter Rhodes     It is now possible to specify a filename pattern-match.
+#### 15/10/2012    1.0         Peter Rhodes     Original Implementation.
+########################################################################################################################
+########################################################################################################################
+#
+#        1         2         3         4         5         6         7         8         9         0         1         2
+#23456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+#
+########################################################################################################################
+#
+# NOTES
+# The archiver file copy uses '-p' option to preserve time details.
+# Therefore the time you see within the ARCHIVED file directory is the time the file was last saved,
+#  and not the time at which it was copied.
+#
+# TODO
+# 1. Add archive restore option.
+# 2. Add archive list option.
+
+
+local %filehash = ();
+local $ARCHIVENAME = ".ARCHIVE";                                     # The relative location of the ARCHIVE directory.
+local $MATCHER     = "*";                                            # Filename pattern matching.
+                                                                     # e.g. *.pm would match all files named *.pm
+local $DIR         = shift;
+if (! $DIR) { print "No target Directory given\n" ; exit 0 }         # We can't do anything without a dirname.
+
+local $ArchiveDir  = "$DIR/$ARCHIVENAME";
+local $SourceDir   = $DIR;
+
+
+if ((-e $ArchiveDir) and (! -d $ArchiveDir)) { print "$ArchiveDir exists and is not a Directory\n" ; exit 0 }
+if (! -e $ArchiveDir)                        { system("mkdir $ArchiveDir") }
+
+#local @FileList    = split("\n",`ls -1 $SourceDir/${MATCHER}`);     # Create Filelist for Archiving.
+#      @FileList    = map { basename($_) } @FileList;
+
+local @FileList = split("\n",`ls -i1 $SourceDir/${MATCHER}`);
+foreach $item (@FileList) {
+    my ($inode,$filename) = split('\s+',$item,2);
+    my $filebase = basename($filename);
+    $filehash{$inode}{'FILENAME'} = $filename;
+    $filehash{$inode}{'FILEBASE'} = $filebase;
+}
+
+local @FileList = split("\n",`ls -i1b $SourceDir/${MATCHER}`);
+foreach $item (@FileList) {
+    my ($inode,$filename) = split('\s+',$item,2);
+    my $filebase = basename($filename);
+    $filehash{$inode}{'FILENAMEB'} = $filename;
+    $filehash{$inode}{'FILEBASEB'} = $filebase;
+}
+
+#foreach my $key (keys %filehash) {
+#    print ">$key<\n";
+#    print ">$filehash{$key}{'FILENAME'}< >$filehash{$key}{'FILEBASE'}< ";
+#    print ">$filehash{$key}{'FILENAMEB'}< >$filehash{$key}{'FILEBASEB'}<\n";
+#}
+
+
+
+
+foreach $Inode (keys %filehash) {
+    $Filename  = $filehash{$Inode}{'FILENAME'};
+    $Filebase  = $filehash{$Inode}{'FILEBASE'};
+    $Filenameb = $filehash{$Inode}{'FILENAMEB'};
+    $Filebaseb = $filehash{$Inode}{'FILEBASEB'};
+
+    if (-f "$SourceDir/$Filebase" ) {
+        @ExistingVersions = split("\n",`ls -1 $ArchiveDir/$Filebaseb.* 2>/dev/null`);        # List the current versions.
+        @ExistingVersions = map { basename($_) } @ExistingVersions;              # Remove the directory path.
+        @ExistingVersions = map { s/^$Filebase\.v//  ; $_ } @ExistingVersions; # Strip text to leave version number.
+        $MaxVersion       = (sort { $b <=> $a } @ExistingVersions)[0];           # Get latest version number.
+        $NewVersion       = $MaxVersion+1;                                       # Increment $NewVersion.
+
+        $Source_Cksum     = `cksum $SourceDir/$Filebaseb               2>/dev/null`;
+        $Source_Cksum     = (split('\s',$Source_Cksum))[0];
+        $Target_Cksum     = `cksum $ArchiveDir/$Filebaseb.v$MaxVersion 2>/dev/null`;
+        $Target_Cksum     = (split('\s',$Target_Cksum))[0];
+
+        if ($Source_Cksum != $Target_Cksum) {
+            system("cp -p $SourceDir/$Filebaseb $ArchiveDir/$Filebaseb.v$NewVersion")
+        }
+
+
+
+    }
+}
+
+
+sub basename {
+    local $binary=shift;
+    local $basename=(split("/",($binary)))[-1];
+    return $basename;
+}
+
+sub dirname {
+    local $binary=shift;
+    local $dirname=$binary;
+    $dirname=~s!/?[^/]*/*$!!;
+    return $dirname;
+}
+

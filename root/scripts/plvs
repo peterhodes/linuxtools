@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+$parg = $ARGV[0];
+if ( $parg =~ /(^|,)+sync($|,)+/ ) { $parg =~ s/sync/copy_percent,lvimagesynced/ }
+if ( $parg )                       { $parg = ",".$parg }
+
+system("lvs --all --segments -o vg_name,lv_name,lv_size,seg_size,seg_size_pe,seg_start_pe,segtype$parg ");
+
+

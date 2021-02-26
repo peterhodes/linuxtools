@@ -1,0 +1,4 @@
+#!/usr/bin/bash
+
+aws ec2 describe-instances --output text --query 'Reservations[*].Instances[*].[InstanceId,State.Name,InstanceType,PrivateIpAddress,PublicDnsName,Tags]'
+

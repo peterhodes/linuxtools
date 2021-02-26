@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+@manlist = @ARGV;
+
+foreach $manpage (@manlist) {
+    system("man -t $manpage | ps2pdf - $manpage.pdf")
+}
+
+

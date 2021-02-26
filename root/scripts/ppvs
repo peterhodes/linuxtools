@@ -1,0 +1,13 @@
+#!/usr/bin/perl
+$parg = $ARGV[0];
+if ($parg) { $parg = ",".$parg }
+
+system("pvs --all -o pvname,vgname,lvname,dev_size,seg_size,pvseg_start,pvseg_size,segtype$parg | sed -e 's-/dev/sd[b-z]*[0-9]*:--g' ");
+
+
+
+
+
+
+
+

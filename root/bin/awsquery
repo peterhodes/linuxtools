@@ -1,0 +1,98 @@
+#!/usr/bin/python3
+
+import os
+import re
+import json
+import sys
+
+
+ThisFile             = sys.argv[0]
+DictionaryFile       = ThisFile + '.dict'
+SearchExpressionList = []
+SearchResultList     = []
+
+
+for Arg in sys.argv[1:]:
+	SearchExpressionList.append(Arg)
+
+
+
+def getOptionList(Cmd):
+	Stdout     = os.popen(Cmd).read()
+	StdoutList = Stdout.split('\n')
+	OptionList = []
+	ServicesFlag = False
+	for item in StdoutList:
+		if re.search('AVAILABLE SERVICES|AVAILABLE COMMANDS',item):
+			ServicesFlag = True
+		match=re.search('\x08',item)
+		if (match and ServicesFlag):
+			item = re.sub(r'^\s+\+\x08o','',item)
+			item = re.sub(r'^ ','',item)  # Irritating - this space not removed with the previous regex
+			OptionList.append(item)
+	return(OptionList)
+
+def writeOptionDict(DictionaryFile,OptionDict):
+	jsonObject = json.dumps(OptionDict)
+	FileHandle = open(DictionaryFile,"w")
+	FileHandle.write(jsonObject)
+	FileHandle.close()
+
+def readOptionDict(DictionaryFile):
+	with open(DictionaryFile) as FileHandle: 
+		fileContent = FileHandle.read() 
+  
+	jsonObject = json.loads(fileContent) 
+	return(jsonObject) 
+
+if os.path.isfile(DictionaryFile):
+	OptionDict = readOptionDict(DictionaryFile)
+else:
+	print('Creating Option Hash')
+	OptionCount          = 0
+	SecondaryOptionCount = 0
+	OptionList = getOptionList('aws help 2>/dev/null | cat')
+	OptionDict = {}
+	for Option in OptionList:
+		if (Option not in OptionDict) and (Option != 'help'):
+			OptionDict.update({Option:{}})
+			OptionCount += 1
+
+	for Option in OptionDict.keys():
+		Cmd = 'aws ' + Option + ' help 2>/dev/null | cat'
+		SecondaryOptionList = getOptionList(Cmd)
+		for SecondaryOption in SecondaryOptionList:
+			if SecondaryOption not in OptionDict[Option]:
+				OptionDict[Option].update({SecondaryOption:None})
+				SecondaryOptionCount += 1
+
+	print('Hash completed.  Option Count',OptionCount,'   Secondary Option Count',SecondaryOptionCount)
+	print('Saving Hash as',DictionaryFile)
+	writeOptionDict(DictionaryFile,OptionDict)
+
+
+
+OptionCount = 0
+for Option in OptionDict.keys():
+	for SecondaryOption in OptionDict[Option]:
+		for SearchExpression in SearchExpressionList:
+			if re.search(SearchExpression,SecondaryOption) or re.search(SearchExpression,Option):
+				OptionCount += 1
+				SearchResult = 'aws ' + Option + ' ' + SecondaryOption + ' help'
+				SearchResultList.append(SearchResult)
+
+for SearchResult in SearchResultList:
+	print(SearchResult)
+
+print("Returned " + str(OptionCount) + " results")
+
+
+
+
+
+
+
+# aws $1 help | sed 's/\x08//' | egrep '+o' | sed 's/.*\+o //' | egrep -v ' ' | more
+# for x in `aws $1 help | sed 's/\x08//' | egrep '+o' | sed 's/.*\+o //' | egrep -v ' '`
+
+

@@ -1,0 +1,165 @@
+#!/usr/bin/perl
+#        1         2         3         4         5         6         7         8         9         0         1         2
+#23456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+
+use lib '/root/libperl';
+use ArgParser;
+use common qw(isnumber max pad upper sedit debugList);
+
+local $devfileMask  = '/sys/devices/pci0000:00/0000:'; # Remove the beginning of the device name to reduce output size.
+local $default      = 'DEVNAME';
+local %devhash      = ();
+local %attrhash     = ();
+
+
+sub get_uevent_list {
+    local @filelist = `find /sys/devices/pci0000:00 -name uevent -print`;
+    chomp(@filelist);
+    return @filelist;
+}
+
+sub print_attrhash {
+    local @attrlist = ();
+    foreach $attribute (sort(keys(%attrhash))) {
+        push @attrlist,$attribute;
+    }
+    print(join(",",@attrlist));
+    print "\n";
+}
+
+sub print_help {
+    print "$0 [help|list] [print=[+]{attr1,attr2,...}] [template=driver|label] [filter=pattern] [devicefilter=pattern] [sort=field]\n";
+    print "$0 list\n";
+    print "$0 template=driver\n";
+    print "$0 template=label\n";
+    print "$0 print=driver,major,minor\n";
+}
+
+
+### RETRIEVE AND STORE DEVICE INFO from
+local @filelist = get_uevent_list;
+foreach $file (sort(@filelist)) {
+
+
+    local $devicedir   =  sedit($file,'s/\/uevent$//');
+    local $shortname   =  sedit($devicedir,"s-$devfileMask--");
+    local $devicefile  =  $file ;
+
+
+    $devhash{$file}{DEVICEFILE}   = $devicefile;
+    $attrhash{DEVICEFILE}{COUNT} += 1;
+    $attrhash{DEVICEFILE}{MAX}    = max($attrhash{DEVICEFILE}{MAX},length($devicefile));
+    $devhash{$file}{DEVICEDIR}    = $devicedir;
+    $attrhash{DEVICEDIR}{COUNT}  += 1;
+    $attrhash{DEVICEDIR}{MAX}     = max($attrhash{DEVICEDIR}{MAX},length($devicedir));
+    $devhash{$file}{SHORTNAME}    = $shortname;
+    $attrhash{SHORTNAME}{COUNT}  += 1;
+    $attrhash{SHORTNAME}{MAX}     = max($attrhash{SHORTNAME}{MAX},length($shortname));
+
+
+    if (-e "$devicedir/label") {
+        $label = `cat $devicedir/label`;
+        chomp($label);
+        $devhash{$file}{LABEL}   = $label;
+        $attrhash{LABEL}{COUNT} += 1;
+        $attrhash{LABEL}{MAX}    = max($attrhash{LABEL}{MAX},length("LABEL"),length($label));
+    }
+
+    foreach $entry (`cat $file`) {           # Run through each uevent device file to collect attributes.
+        chomp($entry);
+        local ($key,$value)     = split(/=/,$entry);
+        $devhash{$file}{$key}   = $value;
+        $attrhash{$key}{COUNT} += 1;
+        $attrhash{$key}{MAX}    = max($attrhash{$key}{MAX},length($key),length($value));
+
+        if (! defined $attrhash{$key}{ALIGN}) {$attrhash{$key}{ALIGN} = ">"}
+        if (! isnumber($value)) {$attrhash{$key}{ALIGN} = "<"}
+    }
+}
+
+
+local   $MyArgs                                 = ArgParser->new();
+                                                  $MyArgs->readargs;
+
+local ( $print_arg       ,$print_count        ) = $MyArgs->getarg("print");
+local ( $list_arg        ,$list_count         ) = $MyArgs->getarg("list");
+local ( $help_arg        ,$help_count         ) = $MyArgs->getarg("help");
+local ( $filter_arg      ,$filter_count       ) = $MyArgs->getarg("filter");
+local ( $sort_arg        ,$sort_count         ) = $MyArgs->getarg("sort");
+local ( $template        ,$tmp                ) = $MyArgs->getarg("template");
+local ( $devicefilter_arg,$devicefilter_count ) = $MyArgs->getarg("devicefilter");
+
+
+if   ($list_count)                             { print_attrhash };
+if ( ($help_count) or (!($MyArgs->listargs)) ) { print_help     };
+if ($template) {
+    if ($template eq "driver") {$default = "driver,shortname,devname,devtype,hid_name,major,minor"};
+    if ($template eq "label" ) {$default = "label,driver,devicefile"};
+    if (! $print_arg) { $print_arg = "+" };
+    $print_count=1;
+};
+
+
+if ( $print_arg =~ /^\+/ ) {
+    $print_arg =~ s/^\+/${default},/;
+}
+($print_arg) = upper($print_arg);
+@print_arg   = split(/,/,$print_arg);
+($sort_arg)  = upper($sort_arg);
+
+
+#### PRINT DEVICE ATTRIBUTES
+########################################################################################################################
+if ($print_count) {
+
+
+    local $printstring = "";
+    local %sorthash    = ();
+
+    if (! $sort_count) {
+        $sort_arg = (split(",",$print_arg))[0];
+        $sort_count = 1;
+    }
+
+    #### Print Header Fields.
+    foreach $attribute (@print_arg) {
+        $value = pad($attribute,$attrhash{$attribute}{MAX},"<");
+        $printstring .= "$value ";
+    }
+    print "$printstring\n";
+
+    foreach $devicekey (sort(keys(%devhash))) {
+        $printstring = "";
+        foreach $attribute (@print_arg) {
+            $value = $devhash{$devicekey}{$attribute};
+            if ($value =~ /^\s*$/) { $value = "--" }
+            $value = pad($value,$attrhash{$attribute}{MAX},$attrhash{$attribute}{ALIGN});
+            $printstring .= "$value ";
+        }
+
+        if (($filter_count)       && ($printstring !~ /$filter/))     {$printstring = ""}
+        if (($devicefilter_count) && ($devicekey !~ /$devicefilter_arg/)) {$printstring = ""}
+        if ($sort_count) {
+            local $sortkey = $devhash{$devicekey}{$sort_arg};
+            if ($sortkey) { $sorthash{$sortkey} = $printstring }
+        }
+    }
+
+    if ($sort_count) {
+        local @sortlist = keys(%sorthash);
+        if (isnumber(@sortlist)) {
+            @sortlist = sort { $a <=> $b } @sortlist;
+        } else {
+            @sortlist = sort @sortlist;
+        }
+        foreach $key (@sortlist) {
+             print "$sorthash{$key}\n" if ( $sorthash{$key} !~ /^[-\s]*$/ );
+        }
+    }
+
+
+}
+########################################################################################################################
+
+
+

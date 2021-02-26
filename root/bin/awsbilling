@@ -1,0 +1,3 @@
+#!/usr/bin/bash
+
+aws ce get-cost-and-usage --time-period Start=`date -d "-10 days" +"%F"`,End=`date +"%F"` --metrics "BlendedCost" "UnblendedCost" "UsageQuantity" --granularity DAILY
