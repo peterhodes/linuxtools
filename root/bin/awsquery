@@ -1,13 +1,15 @@
 #!/usr/bin/python3
 
-import os
-import re
-import json
-import sys
+import os,re,json,sys
+from string import ascii_lowercase,ascii_uppercase
+
+DictionaryDirectory  = os.environ['HOME'] + '/.aws'
+if  not os.path.isdir(DictionaryDirectory):
+        os.mkdir(     DictionaryDirectory)
 
 
 ThisFile             = sys.argv[0]
-DictionaryFile       = ThisFile + '.dict'
+DictionaryFile       = DictionaryDirectory + '/awsquery.dict'
 SearchExpressionList = []
 SearchResultList     = []
 
@@ -15,7 +17,11 @@ SearchResultList     = []
 for Arg in sys.argv[1:]:
 	SearchExpressionList.append(Arg)
 
-
+def RemoveUbuntuHighlighting(String):
+        for Char in ascii_uppercase + ascii_lowercase:
+                Match = Char + '\x08' + Char
+                String = re.sub(Match,Char,String)
+        return(String)
 
 def getOptionList(Cmd):
 	Stdout     = os.popen(Cmd).read()
@@ -23,6 +29,7 @@ def getOptionList(Cmd):
 	OptionList = []
 	ServicesFlag = False
 	for item in StdoutList:
+		item = RemoveUbuntuHighlighting(item)
 		if re.search('AVAILABLE SERVICES|AVAILABLE COMMANDS',item):
 			ServicesFlag = True
 		match=re.search('\x08',item)
@@ -91,7 +98,7 @@ print("Returned " + str(OptionCount) + " results")
 
 
 
-
+# newitem = re.sub(r'[\x00-\x1f\x7f-\x9f]','',item )  # Temporary fix for Ubuntu - remove control characters from aws cli output
 # aws $1 help | sed 's/\x08//' | egrep '+o' | sed 's/.*\+o //' | egrep -v ' ' | more
 # for x in `aws $1 help | sed 's/\x08//' | egrep '+o' | sed 's/.*\+o //' | egrep -v ' '`
 
