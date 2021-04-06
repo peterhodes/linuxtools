@@ -1,0 +1,106 @@
+#!/usr/bin/python3
+
+
+import os
+import re
+
+
+# PRE REQUISITES
+# 1. Installation of AWS CLI (this should create the /root/.aws directory).
+# 2. AWS Credentials that correspond to a user that has permission to shutdown instance.
+# 3. ec2metadata command is available (sometimes needs cloud-utils package).
+
+
+noLoginsTimeStampFile = '/root/.aws/noLoginsTimeStampFile'
+AutoTerminateCommand    = '/usr/local/bin/aws ec2 stop-instances --instance-ids'
+noLoginsGracePeriod   = 900
+
+
+def ReadCommand(CommandString):
+    Result = os.popen(CommandString).read()
+    ListResult = Result.split('\n')
+    return(ListResult)
+
+def ReadFile(filename):
+    if os.path.isfile(filename):
+        with open(filename,"r") as f:
+            lines = f.readlines()
+    return(lines)
+
+def WriteFile(filename,content):
+    if (type(content)) is str:
+        content = [content]
+    File = open(filename,'w')
+    for item in content:
+        File.write(item)
+        File.write('\n')
+    File.close()
+
+def GetOsName():
+    osReleaseFile = "/etc/os-release"
+    attrList = ReadFile(osReleaseFile)
+    r = re.compile("NAME=.*")
+    newList = list(filter(r.match,attrList))
+    OsName = newList[0].split('=')[1]
+    OsName = OsName.replace('\n','')
+    OsName = OsName.replace('"','')
+    return OsName
+
+def getWhoCount():
+    whoCount = ReadCommand('/usr/bin/who | /usr/bin/wc -l')[0]
+    return(int(whoCount))
+
+def GetInstanceId():
+    if osName == 'Amazon Linux':
+        Result = ReadCommand('/usr/bin/ec2-metadata -i')
+        Result = Result[0].split(':')[1]
+        Result = Result.replace(' ','')
+
+    elif osName == 'Ubuntu':
+        Result = ReadCommand('/usr/bin/ec2metadata --instance-id')
+        Result = Result[0]
+
+    else:
+        ##   We don't know the OS type so let's quit.
+        exit()
+
+    return(Result)
+
+def LogThis(String):
+    LogString = "/usr/bin/logger NoLoginsAutoShutdown : " + "'" + String + "'"
+    ReadCommand(LogString)
+
+
+
+
+osName             = GetOsName()
+whoCount           = int(getWhoCount())
+epochTime          = ReadCommand('/usr/bin/date +%s')[0]
+instanceID         = GetInstanceId()
+AutoTerminateCommand = AutoTerminateCommand + ' ' + instanceID
+
+LogThis("whoCount : " + str(whoCount) + "  GracePeriod : " + str(noLoginsGracePeriod))
+
+
+if whoCount == 0:
+    if os.path.isfile(noLoginsTimeStampFile):
+        ##   If no users and timestamp file already exists.
+        initialTimeStamp = int(ReadFile(noLoginsTimeStampFile)[0])
+        currentTimeStamp = int(ReadCommand('/usr/bin/date +%s')[0])
+        timeStampDiff    = currentTimeStamp - initialTimeStamp
+        if timeStampDiff >= noLoginsGracePeriod:
+            ##   If we've allowed grace period then go ahead and reboot.
+            # remove this file before proceeding : noLoginsTimeStampFile
+            os.remove(noLoginsTimeStampFile)
+            LogThis("Running Command " + AutoTerminateCommand)
+        else:
+            ##   Otherwise don't reboot until more time has elapsed.
+            exit()
+    else:
+        ##   No TimeStampFile ?  then create one and quit.
+        WriteFile(noLoginsTimeStampFile,epochTime)
+else:
+    if os.path.isfile(noLoginsTimeStampFile):
+        ##   If users are logged in make sure timestampfile is removed.
+        os.remove(noLoginsTimeStampFile)
+
