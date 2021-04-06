@@ -89,7 +89,7 @@ if whoCount == 0:
         currentTimeStamp = int(ReadCommand('/usr/bin/date +%s')[0])
         timeStampDiff    = currentTimeStamp - initialTimeStamp
         if timeStampDiff >= noLoginsGracePeriod:
-            ##   If we've allowed grace period then go ahead and reboot.
+            ##   If we've allowed grace period then go ahead and terminate.
             # remove this file before proceeding : noLoginsTimeStampFile
             os.remove(noLoginsTimeStampFile)
             LogThis("Running Command " + AutoTerminateCommand)
