@@ -12,7 +12,7 @@ import re
 
 
 noLoginsTimeStampFile = '/root/.aws/noLoginsTimeStampFile'
-AutoTerminateCommand    = '/usr/local/bin/aws ec2 stop-instances --instance-ids'
+AutoTerminateCommand    = '/usr/bin/aws ec2 stop-instances --instance-ids'
 noLoginsGracePeriod   = 900
 
 
