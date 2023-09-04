@@ -1,0 +1,14 @@
+#!/bin/bash
+
+DEPENDENCY_NAME=$1
+
+# Get the list of installed packages
+INSTALLED_PACKAGES=$(rpm -qa)
+
+# Loop through installed packages
+for pkg in $INSTALLED_PACKAGES; do
+    # Check if the package has a dependency on the specified package
+    if rpm -q --requires "$pkg" | grep -q "$DEPENDENCY_NAME"; then
+        echo "Package $pkg depends on $DEPENDENCY_NAME"
+    fi
+done
